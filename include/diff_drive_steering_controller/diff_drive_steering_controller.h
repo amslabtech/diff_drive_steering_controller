@@ -34,6 +34,7 @@
 
 #include <control_msgs/JointTrajectoryControllerState.h>
 #include <controller_interface/controller.h>
+#include <controller_interface/multi_interface_controller.h>
 #include <diff_drive_steering_controller/DiffDriveSteeringControllerConfig.h>
 #include <diff_drive_steering_controller/odometry.h>
 #include <diff_drive_steering_controller/speed_limiter.h>
@@ -59,7 +60,7 @@ namespace diff_drive_steering_controller{
    *  - a wheel joint frame center's vertical projection on the floor must lie within the contact patch
    */
   class DiffDriveSteeringController
-      : public controller_interface::Controller<hardware_interface::VelocityJointInterface>
+      : public controller_interface::MultiInterfaceController<hardware_interface::VelocityJointInterface, hardware_interface::PositionJointInterface>
   {
   public:
     DiffDriveSteeringController();
@@ -70,7 +71,7 @@ namespace diff_drive_steering_controller{
      * \param root_nh       Node handle at root namespace
      * \param controller_nh Node handle inside the controller namespace
      */
-    bool init(hardware_interface::VelocityJointInterface* hw,
+    bool init(hardware_interface::RobotHW* hw,
               ros::NodeHandle& root_nh,
               ros::NodeHandle &controller_nh);
 
