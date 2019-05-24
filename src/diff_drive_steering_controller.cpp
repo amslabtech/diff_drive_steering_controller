@@ -152,9 +152,9 @@ namespace diff_drive_steering_controller{
     , base_frame_id_("base_link")
     , odom_frame_id_("odom")
     , enable_odom_tf_(true)
-    , wheel_joints_size_(0)
     , publish_cmd_(false)
     , publish_wheel_joint_controller_state_(false)
+	, steering_angle_absolute_value_limit_(M_PI/4.0)
   {
   }
 
@@ -167,29 +167,17 @@ namespace diff_drive_steering_controller{
     name_ = complete_ns.substr(id + 1);
 
 	hardware_interface::VelocityJointInterface *vel_joint_if = hw->get<hardware_interface::VelocityJointInterface>();
+	hardware_interface::PositionJointInterface *pos_joint_if = hw->get<hardware_interface::PositionJointInterface>();
 
     // Get joint names from the parameter server
-    std::vector<std::string> left_wheel_names, right_wheel_names;
-    if (!getWheelNames(controller_nh, "left_wheel", left_wheel_names) ||
-        !getWheelNames(controller_nh, "right_wheel", right_wheel_names))
-    {
-      return false;
-    }
-
-    if (left_wheel_names.size() != right_wheel_names.size())
-    {
-      ROS_ERROR_STREAM_NAMED(name_,
-          "#left wheels (" << left_wheel_names.size() << ") != " <<
-          "#right wheels (" << right_wheel_names.size() << ").");
-      return false;
-    }
-    else
-    {
-      wheel_joints_size_ = left_wheel_names.size();
-
-      left_wheel_joints_.resize(wheel_joints_size_);
-      right_wheel_joints_.resize(wheel_joints_size_);
-    }
+	std::string left_wheel_name = "left_wheel_joint";
+	std::string right_wheel_name = "right_wheel_joint";
+	std::string left_steering_name = "left_steering_joint";
+	std::string right_steering_name = "right_steering_joint";
+	controller_nh.param("left_wheel", left_wheel_name, left_wheel_name);
+	controller_nh.param("right_wheel", right_wheel_name, right_wheel_name);
+	controller_nh.param("left_steering", left_steering_name, left_steering_name);
+	controller_nh.param("right_steering", right_steering_name, right_steering_name);
 
     // Odometry related:
     double publish_rate;
@@ -248,6 +236,8 @@ namespace diff_drive_steering_controller{
     controller_nh.param("enable_odom_tf", enable_odom_tf_, enable_odom_tf_);
     ROS_INFO_STREAM_NAMED(name_, "Publishing to tf is " << (enable_odom_tf_?"enabled":"disabled"));
 
+	controller_nh.param("steering_angle_absolute_value_limit", steering_angle_absolute_value_limit_, steering_angle_absolute_value_limit_);
+    ROS_INFO_STREAM_NAMED(name_, "Steering angle limit is " << steering_angle_absolute_value_limit_);
     // Velocity and acceleration limits:
     controller_nh.param("linear/x/has_velocity_limits"    , limiter_lin_.has_velocity_limits    , limiter_lin_.has_velocity_limits    );
     controller_nh.param("linear/x/has_acceleration_limits", limiter_lin_.has_acceleration_limits, limiter_lin_.has_acceleration_limits);
@@ -280,8 +270,8 @@ namespace diff_drive_steering_controller{
     bool lookup_wheel_radius = !controller_nh.getParam("wheel_radius", wheel_radius_);
 
     if (!setOdomParamsFromUrdf(root_nh,
-                              left_wheel_names[0],
-                              right_wheel_names[0],
+                              left_wheel_name,
+                              right_wheel_name,
                               lookup_wheel_separation,
                               lookup_wheel_radius))
     {
@@ -301,54 +291,18 @@ namespace diff_drive_steering_controller{
 
     setOdomPubFields(root_nh, controller_nh);
 
-    if (publish_cmd_)
-    {
-      cmd_vel_pub_.reset(new realtime_tools::RealtimePublisher<geometry_msgs::TwistStamped>(controller_nh, "cmd_vel_out", 100));
-    }
-
-    // Wheel joint controller state:
-    if (publish_wheel_joint_controller_state_)
-    {
-      controller_state_pub_.reset(new realtime_tools::RealtimePublisher<control_msgs::JointTrajectoryControllerState>(controller_nh, "wheel_joint_controller_state", 100));
-
-      const size_t num_wheels = wheel_joints_size_ * 2;
-
-      controller_state_pub_->msg_.joint_names.resize(num_wheels);
-
-      controller_state_pub_->msg_.desired.positions.resize(num_wheels);
-      controller_state_pub_->msg_.desired.velocities.resize(num_wheels);
-      controller_state_pub_->msg_.desired.accelerations.resize(num_wheels);
-      controller_state_pub_->msg_.desired.effort.resize(num_wheels);
-
-      controller_state_pub_->msg_.actual.positions.resize(num_wheels);
-      controller_state_pub_->msg_.actual.velocities.resize(num_wheels);
-      controller_state_pub_->msg_.actual.accelerations.resize(num_wheels);
-      controller_state_pub_->msg_.actual.effort.resize(num_wheels);
-
-      controller_state_pub_->msg_.error.positions.resize(num_wheels);
-      controller_state_pub_->msg_.error.velocities.resize(num_wheels);
-      controller_state_pub_->msg_.error.accelerations.resize(num_wheels);
-      controller_state_pub_->msg_.error.effort.resize(num_wheels);
-
-      for (size_t i = 0; i < wheel_joints_size_; ++i)
-      {
-        controller_state_pub_->msg_.joint_names[i] = left_wheel_names[i];
-        controller_state_pub_->msg_.joint_names[i + wheel_joints_size_] = right_wheel_names[i];
-      }
-
-      vel_left_previous_.resize(wheel_joints_size_, 0.0);
-      vel_right_previous_.resize(wheel_joints_size_, 0.0);
-    }
-
     // Get the joint object to use in the realtime loop
-    for (size_t i = 0; i < wheel_joints_size_; ++i)
-    {
-      ROS_INFO_STREAM_NAMED(name_,
-                            "Adding left wheel with joint name: " << left_wheel_names[i]
-                            << " and right wheel with joint name: " << right_wheel_names[i]);
-      left_wheel_joints_[i] = vel_joint_if->getHandle(left_wheel_names[i]);  // throws on failure
-      right_wheel_joints_[i] = vel_joint_if->getHandle(right_wheel_names[i]);  // throws on failure
-    }
+    ROS_INFO_STREAM_NAMED(name_,
+                          "Adding left wheel with joint name: " << left_wheel_name
+                          << " and right wheel with joint name: " << right_wheel_name);
+    left_wheel_joint_ = vel_joint_if->getHandle(left_wheel_name);  // throws on failure
+    right_wheel_joint_ = vel_joint_if->getHandle(right_wheel_name);  // throws on failure
+
+    ROS_INFO_STREAM_NAMED(name_,
+                          "Adding left steering with joint name: " << left_steering_name
+                          << " and right steering with joint name: " << right_steering_name);
+    left_steering_joint_ = pos_joint_if->getHandle(left_steering_name);  // throws on failure
+    right_steering_joint_ = pos_joint_if->getHandle(right_steering_name);  // throws on failure
 
     sub_command_ = controller_nh.subscribe("cmd_vel", 1, &DiffDriveSteeringController::cmdVelCallback, this);
 
@@ -398,20 +352,10 @@ namespace diff_drive_steering_controller{
     }
     else
     {
-      double left_pos  = 0.0;
-      double right_pos = 0.0;
-      for (size_t i = 0; i < wheel_joints_size_; ++i)
-      {
-        const double lp = left_wheel_joints_[i].getPosition();
-        const double rp = right_wheel_joints_[i].getPosition();
-        if (std::isnan(lp) || std::isnan(rp))
-          return;
-
-        left_pos  += lp;
-        right_pos += rp;
-      }
-      left_pos  /= wheel_joints_size_;
-      right_pos /= wheel_joints_size_;
+      double left_pos = left_wheel_joint_.getPosition();
+      double right_pos = right_wheel_joint_.getPosition();
+      if (std::isnan(left_pos) || std::isnan(right_pos))
+        return;
 
       // Estimate linear and angular velocity using joint information
       odometry_.update(left_pos, right_pos, time);
@@ -484,11 +428,8 @@ namespace diff_drive_steering_controller{
     const double vel_right = (curr_cmd.lin + curr_cmd.ang * ws / 2.0)/rwr;
 
     // Set wheels velocities:
-    for (size_t i = 0; i < wheel_joints_size_; ++i)
-    {
-      left_wheel_joints_[i].setCommand(vel_left);
-      right_wheel_joints_[i].setCommand(vel_right);
-    }
+    left_wheel_joint_.setCommand(vel_left);
+    right_wheel_joint_.setCommand(vel_right);
 
     publishWheelData(time, period, curr_cmd, ws, lwr, rwr);
     time_previous_ = time;
@@ -513,11 +454,10 @@ namespace diff_drive_steering_controller{
   void DiffDriveSteeringController::brake()
   {
     const double vel = 0.0;
-    for (size_t i = 0; i < wheel_joints_size_; ++i)
-    {
-      left_wheel_joints_[i].setCommand(vel);
-      right_wheel_joints_[i].setCommand(vel);
-    }
+    left_wheel_joint_.setCommand(vel);
+    right_wheel_joint_.setCommand(vel);
+	left_steering_joint_.setCommand(0.0);
+	right_steering_joint_.setCommand(0.0);
   }
 
   void DiffDriveSteeringController::cmdVelCallback(const geometry_msgs::Twist& command)
@@ -752,6 +692,7 @@ namespace diff_drive_steering_controller{
   {
     if (publish_wheel_joint_controller_state_ && controller_state_pub_->trylock())
     {
+	  /*
       const double cmd_dt(period.toSec());
 
       // Compute desired wheels velocities, that is before applying limits:
@@ -759,7 +700,6 @@ namespace diff_drive_steering_controller{
       const double vel_right_desired = (curr_cmd.lin + curr_cmd.ang * wheel_separation / 2.0) / right_wheel_radius;
       controller_state_pub_->msg_.header.stamp = time;
 
-      for (size_t i = 0; i < wheel_joints_size_; ++i)
       {
         const double control_duration = (time - time_previous_).toSec();
 
@@ -815,6 +755,7 @@ namespace diff_drive_steering_controller{
       }
 
       controller_state_pub_->unlockAndPublish();
+	  */
     }
   }
 

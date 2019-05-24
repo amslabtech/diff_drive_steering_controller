@@ -103,8 +103,10 @@ namespace diff_drive_steering_controller{
     bool open_loop_;
 
     /// Hardware handles:
-    std::vector<hardware_interface::JointHandle> left_wheel_joints_;
-    std::vector<hardware_interface::JointHandle> right_wheel_joints_;
+    hardware_interface::JointHandle left_wheel_joint_;
+    hardware_interface::JointHandle right_wheel_joint_;
+    hardware_interface::JointHandle left_steering_joint_;
+    hardware_interface::JointHandle right_steering_joint_;
 
     // Previous time
     ros::Time time_previous_;
@@ -167,9 +169,6 @@ namespace diff_drive_steering_controller{
     /// Whether to publish odometry to tf or not:
     bool enable_odom_tf_;
 
-    /// Number of wheel joints:
-    size_t wheel_joints_size_;
-
     /// Speed limiters:
     Commands last1_cmd_;
     Commands last0_cmd_;
@@ -181,6 +180,9 @@ namespace diff_drive_steering_controller{
 
     /// Publish wheel data:
     bool publish_wheel_joint_controller_state_;
+
+	/// Steering angle limit 
+	double steering_angle_absolute_value_limit_;
 
     // A struct to hold dynamic parameters
     // set from dynamic_reconfigure server
