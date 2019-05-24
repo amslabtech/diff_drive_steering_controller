@@ -132,16 +132,10 @@ namespace diff_drive_steering_controller{
     Commands command_struct_;
     ros::Subscriber sub_command_;
 
-    /// Publish executed commands
-    std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::TwistStamped> > cmd_vel_pub_;
-
     /// Odometry related:
     std::shared_ptr<realtime_tools::RealtimePublisher<nav_msgs::Odometry> > odom_pub_;
     std::shared_ptr<realtime_tools::RealtimePublisher<tf::tfMessage> > tf_odom_pub_;
     Odometry odometry_;
-
-    /// Controller state publisher
-    std::shared_ptr<realtime_tools::RealtimePublisher<control_msgs::JointTrajectoryControllerState> > controller_state_pub_;
 
     /// Wheel separation, wrt the midpoint of the wheel width:
     double wheel_separation_;
@@ -174,12 +168,6 @@ namespace diff_drive_steering_controller{
     Commands last0_cmd_;
     SpeedLimiter limiter_lin_;
     SpeedLimiter limiter_ang_;
-
-    /// Publish limited velocity:
-    bool publish_cmd_;
-
-    /// Publish wheel data:
-    bool publish_wheel_joint_controller_state_;
 
 	/// Steering angle limit 
 	double steering_angle_absolute_value_limit_;
@@ -289,21 +277,6 @@ namespace diff_drive_steering_controller{
      */
     void updateDynamicParams();
 
-    /**
-     * \brief
-     * \param time Current time
-     * \param period Time since the last called to update
-     * \param curr_cmd Current velocity command
-     * \param wheel_separation wheel separation with multiplier
-     * \param left_wheel_radius left wheel radius with multiplier
-     * \param right_wheel_radius right wheel radius with multiplier
-     */
-    void publishWheelData(const ros::Time& time,
-                          const ros::Duration& period,
-                          Commands& curr_cmd,
-                          double wheel_separation,
-                          double left_wheel_radius,
-                          double right_wheel_radius);
   };
 
   PLUGINLIB_EXPORT_CLASS(diff_drive_steering_controller::DiffDriveSteeringController, controller_interface::ControllerBase);

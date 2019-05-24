@@ -152,8 +152,6 @@ namespace diff_drive_steering_controller{
     , base_frame_id_("base_link")
     , odom_frame_id_("odom")
     , enable_odom_tf_(true)
-    , publish_cmd_(false)
-    , publish_wheel_joint_controller_state_(false)
 	, steering_angle_absolute_value_limit_(M_PI/4.0)
   {
   }
@@ -258,12 +256,6 @@ namespace diff_drive_steering_controller{
     controller_nh.param("angular/z/min_acceleration"       , limiter_ang_.min_acceleration       , -limiter_ang_.max_acceleration      );
     controller_nh.param("angular/z/max_jerk"               , limiter_ang_.max_jerk               ,  limiter_ang_.max_jerk              );
     controller_nh.param("angular/z/min_jerk"               , limiter_ang_.min_jerk               , -limiter_ang_.max_jerk              );
-
-    // Publish limited velocity:
-    controller_nh.param("publish_cmd", publish_cmd_, publish_cmd_);
-
-    // Publish wheel data:
-    controller_nh.param("publish_wheel_joint_controller_state", publish_wheel_joint_controller_state_, publish_wheel_joint_controller_state_);
 
     // If either parameter is not available, we need to look up the value in the URDF
     bool lookup_wheel_separation = !controller_nh.getParam("wheel_separation", wheel_separation_);
@@ -414,15 +406,6 @@ namespace diff_drive_steering_controller{
     last1_cmd_ = last0_cmd_;
     last0_cmd_ = curr_cmd;
 
-    // Publish limited velocity:
-    if (publish_cmd_ && cmd_vel_pub_ && cmd_vel_pub_->trylock())
-    {
-      cmd_vel_pub_->msg_.header.stamp = time;
-      cmd_vel_pub_->msg_.twist.linear.x = curr_cmd.lin;
-      cmd_vel_pub_->msg_.twist.angular.z = curr_cmd.ang;
-      cmd_vel_pub_->unlockAndPublish();
-    }
-
     // Compute wheels velocities:
     const double vel_left  = (curr_cmd.lin - curr_cmd.ang * ws / 2.0)/lwr;
     const double vel_right = (curr_cmd.lin + curr_cmd.ang * ws / 2.0)/rwr;
@@ -431,7 +414,6 @@ namespace diff_drive_steering_controller{
     left_wheel_joint_.setCommand(vel_left);
     right_wheel_joint_.setCommand(vel_right);
 
-    publishWheelData(time, period, curr_cmd, ws, lwr, rwr);
     time_previous_ = time;
   }
 
@@ -685,78 +667,6 @@ namespace diff_drive_steering_controller{
 
     publish_period_ = ros::Duration(1.0 / dynamic_params.publish_rate);
     enable_odom_tf_ = dynamic_params.enable_odom_tf;
-  }
-
-  void DiffDriveSteeringController::publishWheelData(const ros::Time& time, const ros::Duration& period, Commands& curr_cmd,
-          double wheel_separation, double left_wheel_radius, double right_wheel_radius)
-  {
-    if (publish_wheel_joint_controller_state_ && controller_state_pub_->trylock())
-    {
-	  /*
-      const double cmd_dt(period.toSec());
-
-      // Compute desired wheels velocities, that is before applying limits:
-      const double vel_left_desired  = (curr_cmd.lin - curr_cmd.ang * wheel_separation / 2.0) / left_wheel_radius;
-      const double vel_right_desired = (curr_cmd.lin + curr_cmd.ang * wheel_separation / 2.0) / right_wheel_radius;
-      controller_state_pub_->msg_.header.stamp = time;
-
-      {
-        const double control_duration = (time - time_previous_).toSec();
-
-        const double left_wheel_acc = (left_wheel_joints_[i].getVelocity() - vel_left_previous_[i]) / control_duration;
-        const double right_wheel_acc = (right_wheel_joints_[i].getVelocity() - vel_right_previous_[i]) / control_duration;
-
-        // Actual
-        controller_state_pub_->msg_.actual.positions[i]     = left_wheel_joints_[i].getPosition();
-        controller_state_pub_->msg_.actual.velocities[i]    = left_wheel_joints_[i].getVelocity();
-        controller_state_pub_->msg_.actual.accelerations[i] = left_wheel_acc;
-        controller_state_pub_->msg_.actual.effort[i]        = left_wheel_joints_[i].getEffort();
-
-        controller_state_pub_->msg_.actual.positions[i + wheel_joints_size_]     = right_wheel_joints_[i].getPosition();
-        controller_state_pub_->msg_.actual.velocities[i + wheel_joints_size_]    = right_wheel_joints_[i].getVelocity();
-        controller_state_pub_->msg_.actual.accelerations[i + wheel_joints_size_] = right_wheel_acc;
-        controller_state_pub_->msg_.actual.effort[i+ wheel_joints_size_]         = right_wheel_joints_[i].getEffort();
-
-        // Desired
-        controller_state_pub_->msg_.desired.positions[i]    += vel_left_desired * cmd_dt;
-        controller_state_pub_->msg_.desired.velocities[i]    = vel_left_desired;
-        controller_state_pub_->msg_.desired.accelerations[i] = (vel_left_desired - vel_left_desired_previous_) * cmd_dt;
-        controller_state_pub_->msg_.desired.effort[i]        = std::numeric_limits<double>::quiet_NaN();
-
-        controller_state_pub_->msg_.desired.positions[i + wheel_joints_size_]    += vel_right_desired * cmd_dt;
-        controller_state_pub_->msg_.desired.velocities[i + wheel_joints_size_]    = vel_right_desired;
-        controller_state_pub_->msg_.desired.accelerations[i + wheel_joints_size_] = (vel_right_desired - vel_right_desired_previous_) * cmd_dt;
-        controller_state_pub_->msg_.desired.effort[i+ wheel_joints_size_]         = std::numeric_limits<double>::quiet_NaN();
-
-        // Error
-        controller_state_pub_->msg_.error.positions[i]     = controller_state_pub_->msg_.desired.positions[i] -
-                                                                              controller_state_pub_->msg_.actual.positions[i];
-        controller_state_pub_->msg_.error.velocities[i]    = controller_state_pub_->msg_.desired.velocities[i] -
-                                                                              controller_state_pub_->msg_.actual.velocities[i];
-        controller_state_pub_->msg_.error.accelerations[i] = controller_state_pub_->msg_.desired.accelerations[i] -
-                                                                              controller_state_pub_->msg_.actual.accelerations[i];
-        controller_state_pub_->msg_.error.effort[i]        = controller_state_pub_->msg_.desired.effort[i] -
-                                                                              controller_state_pub_->msg_.actual.effort[i];
-
-        controller_state_pub_->msg_.error.positions[i + wheel_joints_size_]     = controller_state_pub_->msg_.desired.positions[i + wheel_joints_size_] -
-                                                                                                   controller_state_pub_->msg_.actual.positions[i + wheel_joints_size_];
-        controller_state_pub_->msg_.error.velocities[i + wheel_joints_size_]    = controller_state_pub_->msg_.desired.velocities[i + wheel_joints_size_] -
-                                                                                                   controller_state_pub_->msg_.actual.velocities[i + wheel_joints_size_];
-        controller_state_pub_->msg_.error.accelerations[i + wheel_joints_size_] = controller_state_pub_->msg_.desired.accelerations[i + wheel_joints_size_] -
-                                                                                                   controller_state_pub_->msg_.actual.accelerations[i + wheel_joints_size_];
-        controller_state_pub_->msg_.error.effort[i+ wheel_joints_size_]         = controller_state_pub_->msg_.desired.effort[i + wheel_joints_size_] -
-                                                                                                   controller_state_pub_->msg_.actual.effort[i + wheel_joints_size_];
-
-        // Save previous velocities to compute acceleration
-        vel_left_previous_[i] = left_wheel_joints_[i].getVelocity();
-        vel_right_previous_[i] = right_wheel_joints_[i].getVelocity();
-        vel_left_desired_previous_ = vel_left_desired;
-        vel_right_desired_previous_ = vel_right_desired;
-      }
-
-      controller_state_pub_->unlockAndPublish();
-	  */
-    }
   }
 
 } // namespace diff_drive_steering_controller
