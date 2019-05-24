@@ -38,8 +38,11 @@ add_library(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
 
+install(FILES diff_drive_steering_controller_plugins.xml/
+	DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+
 install(DIRECTORY include/${PROJECT_NAME}/
-    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+	DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
 
 # Install library
 install(TARGETS ${PROJECT_NAME}
