@@ -122,11 +122,12 @@ namespace diff_drive_steering_controller{
     /// Velocity command related:
     struct Commands
     {
-      double lin;
-      double ang;
+      double vx;
+      double vy;
+      double wz;
       ros::Time stamp;
 
-      Commands() : lin(0.0), ang(0.0), stamp(0.0) {}
+      Commands() : vx(0.0), vy(0.0), wz(0.0), stamp(0.0) {}
     };
     realtime_tools::RealtimeBuffer<Commands> command_;
     Commands command_struct_;

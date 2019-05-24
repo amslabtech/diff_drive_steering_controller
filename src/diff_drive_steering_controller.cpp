@@ -340,7 +340,7 @@ namespace diff_drive_steering_controller{
     // COMPUTE AND PUBLISH ODOMETRY
     if (open_loop_)
     {
-      odometry_.updateOpenLoop(last0_cmd_.lin, last0_cmd_.ang, time);
+      odometry_.updateOpenLoop(last0_cmd_.vx, last0_cmd_.wz, time);
     }
     else
     {
@@ -393,22 +393,23 @@ namespace diff_drive_steering_controller{
     // Brake if cmd_vel has timeout:
     if (dt > cmd_vel_timeout_)
     {
-      curr_cmd.lin = 0.0;
-      curr_cmd.ang = 0.0;
+      curr_cmd.vx = 0.0;
+      curr_cmd.vy = 0.0;
+      curr_cmd.wz = 0.0;
     }
 
     // Limit velocities and accelerations:
     const double cmd_dt(period.toSec());
 
-    limiter_lin_.limit(curr_cmd.lin, last0_cmd_.lin, last1_cmd_.lin, cmd_dt);
-    limiter_ang_.limit(curr_cmd.ang, last0_cmd_.ang, last1_cmd_.ang, cmd_dt);
+    limiter_lin_.limit(curr_cmd.vx, last0_cmd_.vx, last1_cmd_.vx, cmd_dt);
+    limiter_ang_.limit(curr_cmd.wz, last0_cmd_.wz, last1_cmd_.wz, cmd_dt);
 
     last1_cmd_ = last0_cmd_;
     last0_cmd_ = curr_cmd;
 
     // Compute wheels velocities:
-    const double vel_left  = (curr_cmd.lin - curr_cmd.ang * ws / 2.0)/lwr;
-    const double vel_right = (curr_cmd.lin + curr_cmd.ang * ws / 2.0)/rwr;
+    const double vel_left  = (curr_cmd.vx - curr_cmd.wz * ws / 2.0)/lwr;
+    const double vel_right = (curr_cmd.vx + curr_cmd.wz * ws / 2.0)/rwr;
 
     // Set wheels velocities:
     left_wheel_joint_.setCommand(vel_left);
@@ -455,14 +456,16 @@ namespace diff_drive_steering_controller{
         return;
       }
 
-      command_struct_.ang   = command.angular.z;
-      command_struct_.lin   = command.linear.x;
+      command_struct_.wz   = command.angular.z;
+      command_struct_.vx   = command.linear.x;
+      command_struct_.vy   = command.linear.y;
       command_struct_.stamp = ros::Time::now();
       command_.writeFromNonRT (command_struct_);
       ROS_DEBUG_STREAM_NAMED(name_,
                              "Added values to command. "
-                             << "Ang: "   << command_struct_.ang << ", "
-                             << "Lin: "   << command_struct_.lin << ", "
+                             << "Ang  : "   << command_struct_.wz << ", "
+                             << "Lin x: "   << command_struct_.vx << ", "
+                             << "Lin y: "   << command_struct_.vy << ", "
                              << "Stamp: " << command_struct_.stamp);
     }
     else
