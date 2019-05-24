@@ -415,6 +415,15 @@ namespace diff_drive_steering_controller{
     left_wheel_joint_.setCommand(vel_left);
     right_wheel_joint_.setCommand(vel_right);
 
+	double steering_angle = atan2(curr_cmd.vy, curr_cmd.vx);
+	if(steering_angle > M_PI / 2.0){
+		steering_angle -= M_PI;
+	}else if(steering_angle < -M_PI / 2.0){
+		steering_angle += M_PI;
+	}
+	left_steering_joint_.setCommand(steering_angle);
+	right_steering_joint_.setCommand(steering_angle);
+
     time_previous_ = time;
   }
 
