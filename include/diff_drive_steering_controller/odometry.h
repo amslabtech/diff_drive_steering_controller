@@ -139,6 +139,8 @@ namespace diff_drive_steering_controller
      * \param left_wheel_radius  Left wheel radius [m]
      * \param right_wheel_radius Right wheel radius [m]
      */
+	void setSteeringParam(double steering_angle);
+
     void setWheelParams(double wheel_separation, double left_wheel_radius, double right_wheel_radius);
 
     /**
@@ -179,6 +181,7 @@ namespace diff_drive_steering_controller
     double x_;        //   [m]
     double y_;        //   [m]
     double heading_;  // [rad]
+	double steering_angle_; //[rad]
 
     /// Current velocity:
     double linear_;  //   [m/s]
@@ -187,7 +190,7 @@ namespace diff_drive_steering_controller
     /// Wheel kinematic parameters [m]:
     double wheel_separation_;
     double left_wheel_radius_;
-    double right_wheel_radius_;
+	double right_wheel_radius_;
 
     /// Previou wheel position/state [rad]:
     double left_wheel_old_pos_;

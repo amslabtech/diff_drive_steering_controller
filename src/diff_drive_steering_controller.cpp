@@ -423,6 +423,7 @@ namespace diff_drive_steering_controller{
 	}
 	left_steering_joint_.setCommand(steering_angle);
 	right_steering_joint_.setCommand(steering_angle);
+	odometry_.setSteeringParam(steering_angle);
 
     time_previous_ = time;
   }
