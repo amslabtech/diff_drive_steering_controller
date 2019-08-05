@@ -142,7 +142,6 @@ namespace diff_drive_steering_controller
     const double direction = heading_ + angular * 0.5;
 
     /// Runge-Kutta 2nd order integration:
-	printf("steering_angle_:::::::::::::::%lf\r", steering_angle_);
     x_       += linear * cos(direction+steering_angle_);
     y_       += linear * sin(direction+steering_angle_);
     heading_ += angular;
