@@ -159,6 +159,8 @@ namespace diff_drive_steering_controller{
   bool DiffDriveSteeringController::init(hardware_interface::RobotHW* hw,
             ros::NodeHandle& root_nh,
             ros::NodeHandle &controller_nh)
+	  		//,ros::NodeHandle &steer_controller_nh
+
   {
     const std::string complete_ns = controller_nh.getNamespace();
     std::size_t id = complete_ns.find_last_of("/");
@@ -297,6 +299,7 @@ namespace diff_drive_steering_controller{
     right_steering_joint_ = pos_joint_if->getHandle(right_steering_name);  // throws on failure
 
     sub_command_ = controller_nh.subscribe("cmd_vel", 1, &DiffDriveSteeringController::cmdVelCallback, this);
+	//sub_steer_command_ = steer_controller_nh.subscribe("steering_angle", 1, &DiffDriveSteeringController::cmdSteerCallback, this);
 
     // Initialize dynamic parameters
     DynamicParams dynamic_params;
@@ -396,6 +399,7 @@ namespace diff_drive_steering_controller{
       curr_cmd.vx = 0.0;
       curr_cmd.vy = 0.0;
       curr_cmd.wz = 0.0;
+	  curr_cmd.sa = 0.0;
     }
 
     // Limit velocities and accelerations:
@@ -415,7 +419,7 @@ namespace diff_drive_steering_controller{
     left_wheel_joint_.setCommand(vel_left);
     right_wheel_joint_.setCommand(vel_right);
 
-	double steering_angle = atan2(curr_cmd.vy, curr_cmd.vx);
+	double steering_angle = curr_cmd.sa;//atan2(curr_cmd.vy, curr_cmd.vx);
 	if(steering_angle > M_PI / 2.0){
 		steering_angle -= M_PI;
 	}else if(steering_angle < -M_PI / 2.0){
@@ -469,6 +473,7 @@ namespace diff_drive_steering_controller{
       command_struct_.wz   = command.angular.z;
       command_struct_.vx   = command.linear.x;
       command_struct_.vy   = command.linear.y;
+	  command_struct_.sa   = command.linear.z;
       command_struct_.stamp = ros::Time::now();
       command_.writeFromNonRT (command_struct_);
       ROS_DEBUG_STREAM_NAMED(name_,
@@ -476,6 +481,7 @@ namespace diff_drive_steering_controller{
                              << "Ang  : "   << command_struct_.wz << ", "
                              << "Lin x: "   << command_struct_.vx << ", "
                              << "Lin y: "   << command_struct_.vy << ", "
+                             << "steer z: "   << command_struct_.sa << ", "
                              << "Stamp: " << command_struct_.stamp);
     }
     else
@@ -484,6 +490,20 @@ namespace diff_drive_steering_controller{
     }
   }
 
+/*  void DiffDriveSteeringController::cmdSteerCallback(const std_msgs::Float64& command)
+  {
+    if (isRunning())
+    {
+      command_struct_.wz   = command.data;
+      command_struct_.stamp = ros::Time::now();
+      command_.writeFromNonRT (command_struct_);
+    }
+    else
+    {
+      ROS_ERROR_NAMED(name_, "Can't accept new commands. Controller is not running.");
+    }
+  }
+*/
   bool DiffDriveSteeringController::getWheelNames(ros::NodeHandle& controller_nh,
                               const std::string& wheel_param,
                               std::vector<std::string>& wheel_names)

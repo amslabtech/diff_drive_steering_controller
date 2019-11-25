@@ -40,6 +40,7 @@
 #include <diff_drive_steering_controller/speed_limiter.h>
 #include <dynamic_reconfigure/server.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <std_msgs/Float64.h>
 #include <hardware_interface/joint_command_interface.h>
 #include <memory>
 #include <nav_msgs/Odometry.h>
@@ -74,6 +75,7 @@ namespace diff_drive_steering_controller{
     bool init(hardware_interface::RobotHW* hw,
               ros::NodeHandle& root_nh,
               ros::NodeHandle &controller_nh);
+			  //ros::NodeHandle &steer_controller_nh);
 
     /**
      * \brief Updates controller, i.e. computes the odometry and sets the new velocity commands
@@ -124,14 +126,16 @@ namespace diff_drive_steering_controller{
     {
       double vx;
       double vy;
-      double wz;
+      double wz;//<-rotation(diffdrive)
+	  double sa;//stter angle
       ros::Time stamp;
 
-      Commands() : vx(0.0), vy(0.0), wz(0.0), stamp(0.0) {}
+      Commands() : vx(0.0), vy(0.0), wz(0.0),sa(0.0), stamp(0.0) {}
     };
     realtime_tools::RealtimeBuffer<Commands> command_;
     Commands command_struct_;
     ros::Subscriber sub_command_;
+	ros::Subscriber sub_steer_command_;
 
     /// Odometry related:
     std::shared_ptr<realtime_tools::RealtimePublisher<nav_msgs::Odometry> > odom_pub_;
@@ -233,6 +237,16 @@ namespace diff_drive_steering_controller{
      * \param command Velocity command message (twist)
      */
     void cmdVelCallback(const geometry_msgs::Twist& command);
+
+    /**
+     * \brief Get the wheel names from a wheel param
+     * \param [in]  controller_nh Controller node handler
+     * \param [in]  wheel_param   Param name
+     * \param [out] wheel_names   Vector with the whel names
+     * \return true if the wheel_param is available and the wheel_names are
+     *        retrieved successfully from the param server; false otherwise
+     */
+	void cmdSteerCallback(const std_msgs::Float64& command);
 
     /**
      * \brief Get the wheel names from a wheel param
