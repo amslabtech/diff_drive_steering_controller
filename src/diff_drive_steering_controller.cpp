@@ -159,14 +159,12 @@ namespace diff_drive_steering_controller{
   bool DiffDriveSteeringController::init(hardware_interface::RobotHW* hw,
             ros::NodeHandle& root_nh,
             ros::NodeHandle &controller_nh)
-	  		//,ros::NodeHandle &steer_controller_nh
-
   {
     const std::string complete_ns = controller_nh.getNamespace();
     std::size_t id = complete_ns.find_last_of("/");
     name_ = complete_ns.substr(id + 1);
 
-	hardware_interface::VelocityJointInterface *vel_joint_if = hw->get<hardware_interface::VelocityJointInterface>();
+	hardware_interface::EffortJointInterface *vel_joint_if = hw->get<hardware_interface::EffortJointInterface>();
 	hardware_interface::PositionJointInterface *pos_joint_if = hw->get<hardware_interface::PositionJointInterface>();
 
     // Get joint names from the parameter server
@@ -415,9 +413,15 @@ namespace diff_drive_steering_controller{
     const double vel_left  = (curr_cmd.vx - curr_cmd.wz * ws / 2.0)/lwr;
     const double vel_right = (curr_cmd.vx + curr_cmd.wz * ws / 2.0)/rwr;
 
-    // Set wheels velocities:
-    left_wheel_joint_.setCommand(vel_left);
-    right_wheel_joint_.setCommand(vel_right);
+	//vel -> effort
+	double left_error = vel_left - left_wheel_joint_.getVelocity();
+	double right_error = vel_right - right_wheel_joint_.getVelocity();
+	double effort_left = pid_controller_.computeCommand(left_error, period);
+	double effort_right = pid_controller_.computeCommand(right_error, period);
+
+    // Set wheels effort   //(velocitiesi): 
+    left_wheel_joint_.setCommand(effort_left);
+    right_wheel_joint_.setCommand(effort_right);
 
 	double steering_angle = curr_cmd.sa;//atan2(curr_cmd.vy, curr_cmd.vx);
 	if(steering_angle > M_PI / 2.0){

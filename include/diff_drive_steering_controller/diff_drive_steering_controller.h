@@ -61,7 +61,7 @@ namespace diff_drive_steering_controller{
    *  - a wheel joint frame center's vertical projection on the floor must lie within the contact patch
    */
   class DiffDriveSteeringController
-      : public controller_interface::MultiInterfaceController<hardware_interface::VelocityJointInterface, hardware_interface::PositionJointInterface>
+      : public controller_interface::MultiInterfaceController<hardware_interface::EffortJointInterface, hardware_interface::PositionJointInterface>
   {
   public:
     DiffDriveSteeringController();
