@@ -323,6 +323,11 @@ namespace diff_drive_steering_controller{
     dyn_reconf_server_->updateConfig(config);
     dyn_reconf_server_->setCallback(boost::bind(&DiffDriveSteeringController::reconfCallback, this, _1, _2));
 
+	controller_nh.getParam("p", p);
+	controller_nh.getParam("i", i);
+	controller_nh.getParam("d", d);
+	controller_nh.getParam("i_clamp", i_clamp);
+	pid_controller_.setGains(p,i,d,10.0,0.0);
     return true;
   }
 
@@ -414,6 +419,7 @@ namespace diff_drive_steering_controller{
     const double vel_right = (curr_cmd.vx + curr_cmd.wz * ws / 2.0)/rwr;
 
 	//vel -> effort
+	//pid_controller_.setGains(100.0,0.5,0.1,10.0,0.1);
 	double left_error = vel_left - left_wheel_joint_.getVelocity();
 	double right_error = vel_right - right_wheel_joint_.getVelocity();
 	double effort_left = pid_controller_.computeCommand(left_error, period);

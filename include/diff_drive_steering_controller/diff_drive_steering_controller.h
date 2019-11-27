@@ -46,6 +46,7 @@
 #include <nav_msgs/Odometry.h>
 #include <pluginlib/class_list_macros.hpp>
 #include <realtime_tools/realtime_buffer.h>
+#include <control_toolbox/pid.h>
 #include <realtime_tools/realtime_publisher.h>
 #include <tf/tfMessage.h>
 
@@ -227,6 +228,8 @@ namespace diff_drive_steering_controller{
     std::shared_ptr<ReconfigureServer> dyn_reconf_server_;
 
   private:
+	control_toolbox::Pid pid_controller_;
+	float p, i, d, i_clamp;
     /**
      * \brief Brakes the wheels, i.e. sets the velocity to 0
      */
