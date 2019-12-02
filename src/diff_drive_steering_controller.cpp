@@ -422,8 +422,10 @@ namespace diff_drive_steering_controller{
 	//pid_controller_.setGains(100.0,0.5,0.1,10.0,0.1);
 	double left_error = vel_left - left_wheel_joint_.getVelocity();
 	double right_error = vel_right - right_wheel_joint_.getVelocity();
+	printf("\r velocity = %f",left_wheel_joint_.getVelocity()*lwr);
 	double effort_left = pid_controller_.computeCommand(left_error, period);
 	double effort_right = pid_controller_.computeCommand(right_error, period);
+
 
     // Set wheels effort   //(velocitiesi): 
     left_wheel_joint_.setCommand(effort_left);
