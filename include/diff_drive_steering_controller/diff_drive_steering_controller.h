@@ -62,7 +62,7 @@ namespace diff_drive_steering_controller{
    *  - a wheel joint frame center's vertical projection on the floor must lie within the contact patch
    */
   class DiffDriveSteeringController
-      : public controller_interface::MultiInterfaceController<hardware_interface::EffortJointInterface, hardware_interface::PositionJointInterface>
+      : public controller_interface::MultiInterfaceController<hardware_interface::EffortJointInterface>
   {
   public:
     DiffDriveSteeringController();
@@ -230,6 +230,8 @@ namespace diff_drive_steering_controller{
   private:
 	control_toolbox::Pid pid_controller_;
 	float p, i, d, i_clamp;
+	control_toolbox::Pid steer_pid_controller_;
+	float steer_p, steer_i, steer_d;
     /**
      * \brief Brakes the wheels, i.e. sets the velocity to 0
      */

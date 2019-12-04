@@ -165,7 +165,7 @@ namespace diff_drive_steering_controller{
     name_ = complete_ns.substr(id + 1);
 
 	hardware_interface::EffortJointInterface *vel_joint_if = hw->get<hardware_interface::EffortJointInterface>();
-	hardware_interface::PositionJointInterface *pos_joint_if = hw->get<hardware_interface::PositionJointInterface>();
+	hardware_interface::EffortJointInterface *pos_joint_if = hw->get<hardware_interface::EffortJointInterface>();
 
     // Get joint names from the parameter server
 	std::string left_wheel_name = "left_wheel_joint";
@@ -327,7 +327,11 @@ namespace diff_drive_steering_controller{
 	controller_nh.getParam("i", i);
 	controller_nh.getParam("d", d);
 	controller_nh.getParam("i_clamp", i_clamp);
-	pid_controller_.setGains(p,i,d,10.0,0.0);
+	pid_controller_.setGains(p,i,d,i_clamp,-i_clamp);
+	controller_nh.getParam("steer_p", steer_p);
+	controller_nh.getParam("steer_i", steer_i);
+	controller_nh.getParam("steer_d", steer_d);
+	steer_pid_controller_.setGains(steer_p,steer_i,steer_d, i_clamp, -i_clamp);
     return true;
   }
 
@@ -412,7 +416,7 @@ namespace diff_drive_steering_controller{
     limiter_ang_.limit(curr_cmd.wz, last0_cmd_.wz, last1_cmd_.wz, cmd_dt);
 
     last1_cmd_ = last0_cmd_;
-    last0_cmd_ = curr_cmd;
+	last0_cmd_ = curr_cmd;
 
     // Compute wheels velocities:
     const double vel_left  = (curr_cmd.vx - curr_cmd.wz * ws / 2.0)/lwr;
@@ -422,7 +426,7 @@ namespace diff_drive_steering_controller{
 	//pid_controller_.setGains(100.0,0.5,0.1,10.0,0.1);
 	double left_error = vel_left - left_wheel_joint_.getVelocity();
 	double right_error = vel_right - right_wheel_joint_.getVelocity();
-	printf("\r velocity = %f",left_wheel_joint_.getVelocity()*lwr);
+	//printf("\r velocity = %f",left_wheel_joint_.getVelocity()*lwr);
 	double effort_left = pid_controller_.computeCommand(left_error, period);
 	double effort_right = pid_controller_.computeCommand(right_error, period);
 
@@ -437,8 +441,12 @@ namespace diff_drive_steering_controller{
 	}else if(steering_angle < -M_PI / 2.0){
 		steering_angle += M_PI;
 	}
-	left_steering_joint_.setCommand(steering_angle);
-	right_steering_joint_.setCommand(steering_angle);
+	double left_steering_error = steering_angle -  left_steering_joint_.getPosition();
+	double right_steering_error = steering_angle -  right_steering_joint_.getPosition();
+	double effort_left_steering = steer_pid_controller_.computeCommand(left_steering_error, period);
+	double effort_right_steering = steer_pid_controller_.computeCommand(right_steering_error, period);
+	left_steering_joint_.setCommand(effort_left_steering);
+	right_steering_joint_.setCommand(effort_right_steering);
 	odometry_.setSteeringParam(steering_angle);
 
     time_previous_ = time;
