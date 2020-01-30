@@ -175,7 +175,7 @@ namespace diff_drive_steering_controller{
     SpeedLimiter limiter_lin_;
     SpeedLimiter limiter_ang_;
 
-	/// Steering angle limit 
+	/// Steering angle limit
 	double steering_angle_absolute_value_limit_;
 
     // A struct to hold dynamic parameters
@@ -224,14 +224,14 @@ namespace diff_drive_steering_controller{
 
     /// Dynamic Reconfigure server
     typedef dynamic_reconfigure::Server<DiffDriveSteeringControllerConfig> ReconfigureServer;
-    
+
     std::shared_ptr<ReconfigureServer> dyn_reconf_server_;
 
   private:
 	control_toolbox::Pid pid_controller_;
-	float p, i, d, i_clamp;
+	double p, i, d, i_clamp;
 	control_toolbox::Pid steer_pid_controller_;
-	float steer_p, steer_i, steer_d;
+	double steer_p, steer_i, steer_d;
     /**
      * \brief Brakes the wheels, i.e. sets the velocity to 0
      */

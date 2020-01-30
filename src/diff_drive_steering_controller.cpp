@@ -48,7 +48,7 @@ static double euclideanOfVectors(const urdf::Vector3& vec1, const urdf::Vector3&
 /*
 * \brief Check that a link exists and has a geometry collision.
 * \param link The link
-* \return true if the link has a collision element with geometry 
+* \return true if the link has a collision element with geometry
 */
 static bool hasCollisionGeometry(const urdf::LinkConstSharedPtr& link)
 {
@@ -132,7 +132,7 @@ static bool getWheelRadius(const urdf::LinkConstSharedPtr& wheel_link, double& w
     wheel_radius = (static_cast<urdf::Sphere*>(wheel_link->collision->geometry.get()))->radius;
     return true;
   }
-  
+
   ROS_ERROR_STREAM("Wheel link " << wheel_link->name << " is NOT modeled as a cylinder or sphere!");
   return false;
 }
@@ -298,6 +298,14 @@ namespace diff_drive_steering_controller{
 
     sub_command_ = controller_nh.subscribe("cmd_vel", 1, &DiffDriveSteeringController::cmdVelCallback, this);
 	//sub_steer_command_ = steer_controller_nh.subscribe("steering_angle", 1, &DiffDriveSteeringController::cmdSteerCallback, this);
+    //
+	controller_nh.getParam("p", p);
+	controller_nh.getParam("i", i);
+	controller_nh.getParam("d", d);
+	controller_nh.getParam("i_clamp", i_clamp);
+	controller_nh.getParam("steer_p", steer_p);
+	controller_nh.getParam("steer_i", steer_i);
+	controller_nh.getParam("steer_d", steer_d);
 
     // Initialize dynamic parameters
     DynamicParams dynamic_params;
@@ -319,19 +327,17 @@ namespace diff_drive_steering_controller{
     config.publish_rate = publish_rate;
     config.enable_odom_tf = enable_odom_tf_;
 
+    config.p = p;
+    config.i = i;
+    config.d = d;
+    config.steer_p = steer_p;
+    config.steer_i = steer_i;
+    config.steer_d = steer_d;
+
     dyn_reconf_server_ = std::make_shared<ReconfigureServer>(controller_nh);
     dyn_reconf_server_->updateConfig(config);
     dyn_reconf_server_->setCallback(boost::bind(&DiffDriveSteeringController::reconfCallback, this, _1, _2));
 
-	controller_nh.getParam("p", p);
-	controller_nh.getParam("i", i);
-	controller_nh.getParam("d", d);
-	controller_nh.getParam("i_clamp", i_clamp);
-	pid_controller_.setGains(p,i,d,i_clamp,-i_clamp);
-	controller_nh.getParam("steer_p", steer_p);
-	controller_nh.getParam("steer_i", steer_i);
-	controller_nh.getParam("steer_d", steer_d);
-	steer_pid_controller_.setGains(steer_p,steer_i,steer_d, i_clamp, -i_clamp);
     return true;
   }
 
@@ -431,7 +437,7 @@ namespace diff_drive_steering_controller{
 	double effort_right = pid_controller_.computeCommand(right_error, period);
 
 
-    // Set wheels effort   //(velocitiesi): 
+    // Set wheels effort   //(velocitiesi):
     left_wheel_joint_.setCommand(effort_left);
     right_wheel_joint_.setCommand(effort_right);
 
@@ -706,7 +712,18 @@ namespace diff_drive_steering_controller{
 
     dynamic_params_.writeFromNonRT(dynamic_params);
 
+    p = config.p;
+    i = config.i;
+    d = config.d;
+    steer_p = config.steer_p;
+    steer_i = config.steer_i;
+    steer_d = config.steer_d;
+
+
     ROS_INFO_STREAM_NAMED(name_, "Dynamic Reconfigure:\n" << dynamic_params);
+
+	steer_pid_controller_.setGains(steer_p,steer_i,steer_d, i_clamp, -i_clamp);
+	pid_controller_.setGains(p,i,d,i_clamp,-i_clamp);
   }
 
   void DiffDriveSteeringController::updateDynamicParams()

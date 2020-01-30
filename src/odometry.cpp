@@ -83,7 +83,8 @@ namespace diff_drive_steering_controller
 
     /// Compute linear and angular diff:
     const double linear  = (right_wheel_est_vel + left_wheel_est_vel) * 0.5 ;
-    const double angular = cos(steering_angle_)*(right_wheel_est_vel - left_wheel_est_vel) / wheel_separation_;
+    // const double angular = cos(steering_angle_)*(right_wheel_est_vel - left_wheel_est_vel) / wheel_separation_;
+    const double angular = (right_wheel_est_vel - left_wheel_est_vel) / wheel_separation_;
 
     /// Integrate odometry:
     integrate_fun_(linear, angular);
@@ -115,7 +116,7 @@ namespace diff_drive_steering_controller
     const double dt = (time - timestamp_).toSec();
     timestamp_ = time;
     integrate_fun_(linear * dt, angular * dt);
-	
+
   }
 
   void Odometry::setSteeringParam(double steering_angle)
@@ -142,8 +143,10 @@ namespace diff_drive_steering_controller
     const double direction = heading_ + angular * 0.5;
 
     /// Runge-Kutta 2nd order integration:
-    x_       += linear * cos(direction+steering_angle_);
-    y_       += linear * sin(direction+steering_angle_);
+    // x_       += linear * cos(direction+steering_angle_);
+    // y_       += linear * sin(direction+steering_angle_);
+    x_       += linear * cos(direction);
+    y_       += linear * sin(direction);
     heading_ += angular;
   }
 
@@ -162,8 +165,10 @@ namespace diff_drive_steering_controller
       const double heading_old = heading_;
       const double r = linear/angular;
       heading_ += angular;
-      x_       +=  r * (sin(heading_+steering_angle_) - sin(heading_old+steering_angle_));
-      y_       += -r * (cos(heading_+steering_angle_) - cos(heading_old+steering_angle_));
+      // x_       +=  r * (sin(heading_+steering_angle_) - sin(heading_old+steering__));
+      // y_       += -r * (cos(heading_+steering_angle_) - cos(heading_old+steering_angle_));
+      x_       +=  r * (sin(heading_) - sin(heading_old));
+      y_       += -r * (cos(heading_)- cos(heading_old));
     }
   }
 
