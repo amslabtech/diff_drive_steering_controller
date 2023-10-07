@@ -43,10 +43,13 @@
 #include <hardware_interface/joint_command_interface.h>
 #include <memory>
 #include <nav_msgs/Odometry.h>
+#include <std_msgs/Float64.h>
+#include <string>
 #include <pluginlib/class_list_macros.hpp>
 #include <realtime_tools/realtime_buffer.h>
 #include <realtime_tools/realtime_publisher.h>
 #include <tf/tfMessage.h>
+#include <unordered_map>
 
 namespace diff_drive_steering_controller{
 
@@ -132,6 +135,9 @@ namespace diff_drive_steering_controller{
     realtime_tools::RealtimeBuffer<Commands> command_;
     Commands command_struct_;
     ros::Subscriber sub_command_;
+    std::unordered_map<std::string, ros::Subscriber> sub_steering_command_;
+    std::unordered_map<std::string, double> steering_target_angle_;
+    bool enable_independent_steering_;
 
     /// Odometry related:
     std::shared_ptr<realtime_tools::RealtimePublisher<nav_msgs::Odometry> > odom_pub_;
@@ -233,6 +239,14 @@ namespace diff_drive_steering_controller{
      * \param command Velocity command message (twist)
      */
     void cmdVelCallback(const geometry_msgs::Twist& command);
+
+    /**
+     * \brief Steering command callback
+     *
+     * \param command Steering angle in radians.
+     * \param wheel_name "left" or "right"
+     */
+    void steeringCmdCallback(const std_msgs::Float64ConstPtr& command, const std::string& wheel_name);
 
     /**
      * \brief Get the wheel names from a wheel param
