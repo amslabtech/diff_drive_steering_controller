@@ -178,10 +178,6 @@ namespace diff_drive_steering_controller{
 	controller_nh.param("left_steering", left_steering_name, left_steering_name);
 	controller_nh.param("right_steering", right_steering_name, right_steering_name);
 
-  const double steer_p = controller_nh.param("steer_p", 1.0);
-  const double steer_i = controller_nh.param("steer_i", 0.0);
-  const double steer_d = controller_nh.param("steer_d", 0.0);
-
     // Odometry related:
     double publish_rate;
     controller_nh.param("publish_rate", publish_rate, 50.0);
