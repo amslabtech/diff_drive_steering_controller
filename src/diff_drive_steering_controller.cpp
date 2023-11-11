@@ -152,6 +152,7 @@ namespace diff_drive_steering_controller{
     , base_frame_id_("base_link")
     , odom_frame_id_("odom")
     , enable_odom_tf_(true)
+    , enable_independent_steering_(true)
 	, steering_angle_absolute_value_limit_(M_PI/4.0)
   {
   }
@@ -234,6 +235,9 @@ namespace diff_drive_steering_controller{
     controller_nh.param("enable_odom_tf", enable_odom_tf_, enable_odom_tf_);
     ROS_INFO_STREAM_NAMED(name_, "Publishing to tf is " << (enable_odom_tf_?"enabled":"disabled"));
 
+    controller_nh.param("enable_independent_steering", enable_independent_steering_, enable_independent_steering_);
+    ROS_INFO_STREAM_NAMED(name_, "Independent steering is " << (enable_independent_steering_?"enabled":"disabled"));
+
 	controller_nh.param("steering_angle_absolute_value_limit", steering_angle_absolute_value_limit_, steering_angle_absolute_value_limit_);
     ROS_INFO_STREAM_NAMED(name_, "Steering angle limit is " << steering_angle_absolute_value_limit_);
     // Velocity and acceleration limits:
@@ -297,6 +301,17 @@ namespace diff_drive_steering_controller{
     right_steering_joint_ = pos_joint_if->getHandle(right_steering_name);  // throws on failure
 
     sub_command_ = controller_nh.subscribe("cmd_vel", 1, &DiffDriveSteeringController::cmdVelCallback, this);
+    if (enable_independent_steering_)
+    {
+      sub_steering_command_["right"] =
+          controller_nh.subscribe<std_msgs::Float64>("steering_cmd/right",
+          1,
+          boost::bind(&DiffDriveSteeringController::steeringCmdCallback, this, _1, "right"));
+      sub_steering_command_["left"] =
+          controller_nh.subscribe<std_msgs::Float64>("steering_cmd/left",
+          1,
+          boost::bind(&DiffDriveSteeringController::steeringCmdCallback, this, _1, "left"));
+    }
 
     // Initialize dynamic parameters
     DynamicParams dynamic_params;
@@ -314,6 +329,7 @@ namespace diff_drive_steering_controller{
     config.left_wheel_radius_multiplier  = left_wheel_radius_multiplier_;
     config.right_wheel_radius_multiplier = right_wheel_radius_multiplier_;
     config.wheel_separation_multiplier   = wheel_separation_multiplier_;
+    config.enable_independent_steering = enable_independent_steering_;
 
     config.publish_rate = publish_rate;
     config.enable_odom_tf = enable_odom_tf_;
@@ -415,14 +431,32 @@ namespace diff_drive_steering_controller{
     left_wheel_joint_.setCommand(vel_left);
     right_wheel_joint_.setCommand(vel_right);
 
-	double steering_angle = atan2(curr_cmd.vy, curr_cmd.vx);
-	if(steering_angle > M_PI / 2.0){
-		steering_angle -= M_PI;
-	}else if(steering_angle < -M_PI / 2.0){
-		steering_angle += M_PI;
-	}
-	left_steering_joint_.setCommand(steering_angle);
-	right_steering_joint_.setCommand(steering_angle);
+    if (!enable_independent_steering_)
+    {
+      double steering_angle = atan2(curr_cmd.vy, curr_cmd.vx);
+      if(steering_angle > M_PI / 2.0){
+        steering_angle -= M_PI;
+      }else if(steering_angle < -M_PI / 2.0){
+        steering_angle += M_PI;
+      }
+      steering_angle =
+          std::min(
+              std::max(steering_angle, -steering_angle_absolute_value_limit_),
+              steering_angle_absolute_value_limit_);
+      left_steering_joint_.setCommand(steering_angle);
+      right_steering_joint_.setCommand(steering_angle);
+    }
+    else
+    {
+      if (steering_target_angle_.find("left") != steering_target_angle_.end())
+      {
+        left_steering_joint_.setCommand(steering_target_angle_.at("left"));
+      }
+      if (steering_target_angle_.find("right") != steering_target_angle_.end())
+      {
+        right_steering_joint_.setCommand(steering_target_angle_.at("right"));
+      }
+    }
 
     time_previous_ = time;
   }
@@ -476,6 +510,22 @@ namespace diff_drive_steering_controller{
                              << "Lin x: "   << command_struct_.vx << ", "
                              << "Lin y: "   << command_struct_.vy << ", "
                              << "Stamp: " << command_struct_.stamp);
+    }
+    else
+    {
+      ROS_ERROR_NAMED(name_, "Can't accept new commands. Controller is not running.");
+    }
+  }
+
+  void DiffDriveSteeringController::steeringCmdCallback(const std_msgs::Float64ConstPtr& msg, const std::string& wheel_name)
+  {
+    if (isRunning())
+    {
+      steering_target_angle_[wheel_name] = msg->data;
+      steering_target_angle_[wheel_name] =
+          std::min(
+              std::max(steering_target_angle_[wheel_name], -steering_angle_absolute_value_limit_),
+              steering_angle_absolute_value_limit_);
     }
     else
     {
