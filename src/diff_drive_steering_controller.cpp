@@ -362,11 +362,13 @@ namespace diff_drive_steering_controller{
     {
       double left_pos = left_wheel_joint_.getPosition();
       double right_pos = right_wheel_joint_.getPosition();
-      if (std::isnan(left_pos) || std::isnan(right_pos))
+      const double left_steering_pos = left_steering_joint_.getPosition();
+      const double right_steering_pos = right_steering_joint_.getPosition();
+      if (std::isnan(left_pos) || std::isnan(right_pos) || std::isnan(left_steering_pos) || std::isnan(right_steering_pos))
         return;
 
       // Estimate linear and angular velocity using joint information
-      odometry_.update(left_pos, right_pos, time);
+      odometry_.update(left_pos, right_pos, left_steering_pos, right_steering_pos, time);
     }
 
     // Publish odometry message
