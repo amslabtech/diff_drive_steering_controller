@@ -35,6 +35,7 @@
 #include <diff_drive_steering_controller/odometry.h>
 
 #include <boost/bind.hpp>
+#include <ros/ros.h>
 
 namespace diff_drive_steering_controller
 {
@@ -56,6 +57,7 @@ namespace diff_drive_steering_controller
   , linear_acc_(RollingWindow::window_size = velocity_rolling_window_size)
   , angular_acc_(RollingWindow::window_size = velocity_rolling_window_size)
   , integrate_fun_(boost::bind(&Odometry::integrateExact, this, _1, _2))
+  , integrate_fun_steering_(boost::bind(&Odometry::integrateSteering, this, _1, _2, _3))
   {
   }
 
@@ -66,7 +68,7 @@ namespace diff_drive_steering_controller
     timestamp_ = time;
   }
 
-  bool Odometry::update(double left_pos, double right_pos, const ros::Time &time)
+  bool Odometry::update(double left_pos, double right_pos, double left_steering_pos, double right_steering_pos, const ros::Time &time)
   {
     /// Get current wheel joint positions:
     const double left_wheel_cur_pos  = left_pos  * left_wheel_radius_;
@@ -75,17 +77,58 @@ namespace diff_drive_steering_controller
     /// Estimate velocity of wheels using old and current position:
     const double left_wheel_est_vel  = left_wheel_cur_pos  - left_wheel_old_pos_;
     const double right_wheel_est_vel = right_wheel_cur_pos - right_wheel_old_pos_;
+    ROS_DEBUG("vel_l: %.6f[m], vel_r: %.6f[m], str_l: %.3f[rad], str_r: %.3f[rad]", left_wheel_est_vel, right_wheel_est_vel, left_steering_pos, right_steering_pos);
 
     /// Update old position with current:
     left_wheel_old_pos_  = left_wheel_cur_pos;
     right_wheel_old_pos_ = right_wheel_cur_pos;
 
-    /// Compute linear and angular diff:
-    const double linear  = (right_wheel_est_vel + left_wheel_est_vel) * 0.5 ;
-    const double angular = (right_wheel_est_vel - left_wheel_est_vel) / wheel_separation_;
+    const double steering_angle_threshold = 1e-2;
+    double linear_x = 0.0;
+    double linear_y = 0.0;
+    double angular = 0.0;
+    if (std::abs(left_steering_pos) < steering_angle_threshold &&
+        std::abs(right_steering_pos) < steering_angle_threshold)
+    {
+      // Both wheels heading forward.
+      /// Compute linear and angular diff:
+      linear_x  = (right_wheel_est_vel + left_wheel_est_vel) * 0.5 ;
+      angular = (right_wheel_est_vel - left_wheel_est_vel) / wheel_separation_;
 
-    /// Integrate odometry:
-    integrate_fun_(linear, angular);
+      /// Integrate odometry:
+      ROS_DEBUG("CASE 1: linear_x: %.6f[m], linear_y: %.6f[m], angular: %.6f[rad]", linear_x, linear_y, angular);
+      integrate_fun_(linear_x, angular);
+    }
+    else if (std::abs(left_steering_pos - right_steering_pos) < steering_angle_threshold)
+    {
+      // Both wheels heading in the same direction.
+      const double ave_vel  = (right_wheel_est_vel + left_wheel_est_vel) * 0.5 ;
+      const double ave_steering  = (left_steering_pos + right_steering_pos) * 0.5 ;
+      linear_x = ave_vel * cos(ave_steering);
+      linear_y = ave_vel * sin(ave_steering);
+
+      ROS_DEBUG("CASE 2: linear_x: %.6f[m], linear_y: %.6f[m], angular: %.6f[rad]", linear_x, linear_y, angular);
+      integrate_fun_steering_(linear_x, linear_y, angular);
+    }
+    else
+    {
+      // Wheels heading different directions.
+      const double sin_abs_r = sin(std::abs(right_steering_pos));
+      const double sin_abs_l = sin(std::abs(left_steering_pos));
+      const double sin_abs_diff = sin(std::abs(left_steering_pos - right_steering_pos));
+      const double r_l = sin_abs_r / sin_abs_diff * wheel_separation_;
+      const double r_r = sin_abs_l / sin_abs_diff * wheel_separation_;
+      linear_x = (cos(left_steering_pos) * left_wheel_est_vel +
+          cos(right_steering_pos) * right_wheel_est_vel) * 0.5;
+      linear_y = (sin(left_steering_pos) * left_wheel_est_vel +
+          sin(right_steering_pos) * right_wheel_est_vel) * 0.5;
+      // angular = (right_wheel_est_vel / r_r - left_wheel_est_vel / r_l);
+      angular = (right_wheel_est_vel - left_wheel_est_vel) / std::abs(r_r - r_l);
+
+      ROS_DEBUG("CASE 3: linear_x: %.6f[m], linear_y: %.6f[m], angular: %.6f[rad]", linear_x, linear_y, angular);
+      ROS_DEBUG("rwv: %.6f, r_r: %.6f, lwv: %.6f, r_l: %.6f", right_wheel_est_vel, r_r, left_wheel_est_vel, r_l);
+      integrate_fun_steering_(linear_x, linear_y, angular);
+    }
 
     /// We cannot estimate the speed with very small time intervals:
     const double dt = (time - timestamp_).toSec();
@@ -95,7 +138,7 @@ namespace diff_drive_steering_controller
     timestamp_ = time;
 
     /// Estimate speeds using a rolling mean to filter them out:
-    linear_acc_(linear/dt);
+    linear_acc_(linear_x/dt);
     angular_acc_(angular/dt);
 
     linear_ = bacc::rolling_mean(linear_acc_);
@@ -158,6 +201,14 @@ namespace diff_drive_steering_controller
       x_       +=  r * (sin(heading_) - sin(heading_old));
       y_       += -r * (cos(heading_) - cos(heading_old));
     }
+  }
+
+  void Odometry::integrateSteering(double linear_x, double linear_y, double angular)
+  {
+    x_ += linear_x * cos(heading_) - linear_y * sin(heading_);
+    y_ += linear_x * sin(heading_) + linear_y * cos(heading_);
+    heading_ += angular;
+    ROS_DEBUG("x: %.6f[m], y: %.6f[m], yaw: %.6f[rad]", x_, y_, heading_);
   }
 
   void Odometry::resetAccumulators()

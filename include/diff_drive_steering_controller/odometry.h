@@ -56,6 +56,7 @@ namespace diff_drive_steering_controller
 
     /// Integration function, used to integrate the odometry:
     typedef boost::function<void(double, double)> IntegrationFunction;
+    typedef boost::function<void(double, double, double)> IntegrationFunctionForSteering;
 
     /**
      * \brief Constructor
@@ -75,10 +76,12 @@ namespace diff_drive_steering_controller
      * \brief Updates the odometry class with latest wheels position
      * \param left_pos  Left  wheel position [rad]
      * \param right_pos Right wheel position [rad]
+     * \param left_steering_pos  Left  steering position [rad]
+     * \param right_steering_pos Right steering position [rad]
      * \param time      Current time
      * \return true if the odometry is actually updated
      */
-    bool update(double left_pos, double right_pos, const ros::Time &time);
+    bool update(double left_pos, double right_pos, double left_steering_pos, double right_steering_pos, const ros::Time &time);
 
     /**
      * \brief Updates the odometry class with latest velocity command
@@ -167,6 +170,8 @@ namespace diff_drive_steering_controller
      */
     void integrateExact(double linear, double angular);
 
+    void integrateSteering(double linear_x, double linear_y, double angular);
+
     /**
      *  \brief Reset linear and angular accumulators
      */
@@ -200,6 +205,7 @@ namespace diff_drive_steering_controller
 
     /// Integration funcion, used to integrate the odometry:
     IntegrationFunction integrate_fun_;
+    IntegrationFunctionForSteering integrate_fun_steering_;
   };
 }
 
